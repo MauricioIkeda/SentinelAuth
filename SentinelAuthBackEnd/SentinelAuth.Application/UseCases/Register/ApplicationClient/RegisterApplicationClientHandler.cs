@@ -9,14 +9,14 @@ namespace SentinelAuth.Application.UseCases.Register.ApplicationClient;
 public sealed class RegisterApplicationClientHandler
     : IRequestHandler<RegisterApplicationClientCommand, Result<RegisterApplicationClientResult>>
 {
-    private readonly IApplicationClient _applicationClientRepository;
+    private readonly IApplicationClientRepository _applicationClientRepositoryRepository;
     private readonly IUnitOfWork _unitOfWork;
 
     public RegisterApplicationClientHandler(
-        IApplicationClient applicationClientRepository,
+        IApplicationClientRepository applicationClientRepositoryRepository,
         IUnitOfWork unitOfWork)
     {
-        _applicationClientRepository = applicationClientRepository;
+        _applicationClientRepositoryRepository = applicationClientRepositoryRepository;
         _unitOfWork = unitOfWork;
     }
 
@@ -35,7 +35,7 @@ public sealed class RegisterApplicationClientHandler
             return Result<RegisterApplicationClientResult>.Failure(applicationClient.Error);
         }
 
-        var clientIdAlreadyExists = await _applicationClientRepository.ExistsByClientIdAsync(
+        var clientIdAlreadyExists = await _applicationClientRepositoryRepository.ExistsByClientIdAsync(
             applicationClient.Value.ClientId,
             cancellationToken
         );
@@ -50,7 +50,7 @@ public sealed class RegisterApplicationClientHandler
             );
         }
 
-        var audienceAlreadyExists = await _applicationClientRepository.ExistsByAudienceAsync(
+        var audienceAlreadyExists = await _applicationClientRepositoryRepository.ExistsByAudienceAsync(
             applicationClient.Value.Audience,
             cancellationToken
         );
@@ -65,7 +65,7 @@ public sealed class RegisterApplicationClientHandler
             );
         }
 
-        await _applicationClientRepository.AddAsync(applicationClient.Value, cancellationToken);
+        await _applicationClientRepositoryRepository.AddAsync(applicationClient.Value, cancellationToken);
         await _unitOfWork.CommitAsync(cancellationToken);
 
         return Result<RegisterApplicationClientResult>.Success(

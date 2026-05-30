@@ -17,10 +17,11 @@ namespace SentinelAuth.Infrastructure.DependencyInjection
                 options.UseNpgsql(configuration.GetConnectionString("DefaultConnection")));
 
             services.AddScoped<IUnitOfWork, UnitOfWork>();
-            services.AddScoped<IApplicationClient, ApplicationClientRepository>();
+            services.AddScoped<IApplicationClientRepository, ApplicationClientRepositoryRepository>();
             services.AddScoped<IUserRepository, UserRepository>();
             services.AddScoped<IRoleRepository, RoleRepository>();
             services.AddScoped<IPasswordHasher, MicrosoftPasswordHasher>();
+            services.AddScoped<IUserApplicationRoleRepository, UserApplicationRoleRepository>();
 
             return services;
         }

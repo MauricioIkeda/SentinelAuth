@@ -2,21 +2,17 @@ using SentinelAuth.Domain.Entities;
 
 namespace SentinelAuth.Domain.Repositories;
 
-public interface IRoleRepository
+public interface IUserApplicationRoleRepository
 {
-    Task<bool> ExistsByNameAsync(
+    Task<bool> ExistsAsync(
+        long userId,
         long applicationClientId,
-        string normalizedName,
-        CancellationToken cancellationToken = default
-    );
-
-    Task<Role?> GetByIdAsync(
-        long id,
+        long roleId,
         CancellationToken cancellationToken = default
     );
 
     Task AddAsync(
-        Role role,
+        UserApplicationRole userApplicationRole,
         CancellationToken cancellationToken = default
     );
 }

@@ -6,10 +6,10 @@ using System.Text;
 
 namespace SentinelAuth.Application.UseCases.Register.User
 {
-    public class RegisterUserCommand : IRequest<Result<RegisterUserResult>>
-    {
-        public string Name { get; set; }
-        public string Email { get; set; }
-        public string Password { get; set; }
-    }
+    public sealed record RegisterUserCommand
+    (
+        string Name,
+        string Email,
+        string Password
+    ) : IRequest<Result<RegisterUserResult>>;
 }

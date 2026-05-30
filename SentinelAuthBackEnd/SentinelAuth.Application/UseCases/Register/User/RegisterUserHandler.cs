@@ -7,7 +7,7 @@ using SentinelAuth.Domain.ValueObjects;
 
 namespace SentinelAuth.Application.UseCases.Register.User;
 
-public class RegisterUserHandler
+public sealed class RegisterUserHandler
     : IRequestHandler<RegisterUserCommand, Result<RegisterUserResult>>
 {
     private readonly IUserRepository _userRepository;
@@ -66,11 +66,11 @@ public class RegisterUserHandler
 
         return Result<RegisterUserResult>.Success(
             new RegisterUserResult
-            {
-                Id = createdUser.Id,
-                Name = createdUser.Name,
-                Email = createdUser.Email.Value,
-            }
+            (
+                createdUser.Id,
+                createdUser.Name,
+                createdUser.Email.Value
+            )
         );
     }
 }

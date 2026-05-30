@@ -2,7 +2,7 @@ using SentinelAuth.Domain.Entities;
 
 namespace SentinelAuth.Domain.Repositories;
 
-public interface IApplicationClient
+public interface IApplicationClientRepository
 {
     Task<bool> ExistsByClientIdAsync(
         string clientId,

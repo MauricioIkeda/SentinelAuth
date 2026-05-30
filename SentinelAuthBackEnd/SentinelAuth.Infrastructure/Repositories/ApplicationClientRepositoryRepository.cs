@@ -5,11 +5,11 @@ using SentinelAuth.Infrastructure.Data;
 
 namespace SentinelAuth.Infrastructure.Repositories;
 
-public sealed class ApplicationClientRepository : IApplicationClient
+public sealed class ApplicationClientRepositoryRepository : IApplicationClientRepository
 {
     private readonly ApplicationDbContext _dbContext;
 
-    public ApplicationClientRepository(ApplicationDbContext dbContext)
+    public ApplicationClientRepositoryRepository(ApplicationDbContext dbContext)
     {
         _dbContext = dbContext;
     }

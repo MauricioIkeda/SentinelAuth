@@ -27,6 +27,16 @@ public sealed class RoleRepository : IRoleRepository
         );
     }
 
+    public Task<Role?> GetByIdAsync(
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        return _dbContext.Roles.FirstOrDefaultAsync(
+            role => role.Id == id,
+            cancellationToken
+        );
+    }
+
     public async Task AddAsync(
         Role role,
         CancellationToken cancellationToken = default)

@@ -15,6 +15,7 @@ namespace SentinelAuth.Infrastructure.Data
         public DbSet<User> Users { get; set; }
         public DbSet<ApplicationClient> ApplicationClients { get; set; }
         public DbSet<Role> Roles { get; set; }
+        public DbSet<UserApplicationRole> UserApplicationRoles => Set<UserApplicationRole>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
