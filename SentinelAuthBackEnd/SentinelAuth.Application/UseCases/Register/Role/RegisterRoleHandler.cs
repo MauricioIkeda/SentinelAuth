@@ -10,13 +10,16 @@ public sealed class CreateRoleHandler
     : IRequestHandler<RegisterRoleCommand, Result<RegisterRoleResult>>
 {
     private readonly IRoleRepository _roleRepository;
+    private readonly IApplicationClientRepository _applicationClientRepository;
     private readonly IUnitOfWork _unitOfWork;
 
     public CreateRoleHandler(
         IRoleRepository roleRepository,
+        IApplicationClientRepository applicationClientRepository,
         IUnitOfWork unitOfWork)
     {
         _roleRepository = roleRepository;
+        _applicationClientRepository = applicationClientRepository;
         _unitOfWork = unitOfWork;
     }
 
@@ -38,6 +41,21 @@ public sealed class CreateRoleHandler
                 Error.Conflict(
                     "Role.AlreadyExists",
                     "A role with this name already exists for this application client."
+                )
+            );
+        }
+
+        var applicationClient = await _applicationClientRepository.GetByIdAsync(
+            command.ApplicationClientId,
+            cancellationToken
+        );
+
+        if (applicationClient is null)
+        {
+            return Result<RegisterRoleResult>.Failure(
+                Error.NotFound(
+                    "ApplicationClient.NotFound",
+                    "Application client not found."
                 )
             );
         }

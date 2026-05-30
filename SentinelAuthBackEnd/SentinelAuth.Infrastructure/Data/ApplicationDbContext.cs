@@ -16,6 +16,7 @@ namespace SentinelAuth.Infrastructure.Data
         public DbSet<ApplicationClient> ApplicationClients { get; set; }
         public DbSet<Role> Roles { get; set; }
         public DbSet<UserApplicationRole> UserApplicationRoles => Set<UserApplicationRole>();
+        public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

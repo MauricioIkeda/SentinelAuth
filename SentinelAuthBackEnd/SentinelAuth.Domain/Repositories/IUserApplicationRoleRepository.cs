@@ -15,4 +15,10 @@ public interface IUserApplicationRoleRepository
         UserApplicationRole userApplicationRole,
         CancellationToken cancellationToken = default
     );
+
+    Task<IReadOnlyCollection<string>> GetRoleNamesAsync(
+        long userId,
+        long applicationClientId,
+        CancellationToken cancellationToken = default
+    );
 }

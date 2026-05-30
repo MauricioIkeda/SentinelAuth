@@ -14,6 +14,24 @@ public sealed class UserApplicationRoleRepository : IUserApplicationRoleReposito
         _dbContext = dbContext;
     }
 
+    public async Task<IReadOnlyCollection<string>> GetRoleNamesAsync(
+        long userId,
+        long applicationClientId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.UserApplicationRoles
+            .Where(userApplicationRole =>
+                userApplicationRole.UserId == userId &&
+                userApplicationRole.ApplicationClientId == applicationClientId)
+            .Join(
+                _dbContext.Roles,
+                userApplicationRole => userApplicationRole.RoleId,
+                role => role.Id,
+                (userApplicationRole, role) => role.Name
+            )
+            .ToListAsync(cancellationToken);
+    }
+
     public Task<bool> ExistsAsync(
         long userId,
         long applicationClientId,
