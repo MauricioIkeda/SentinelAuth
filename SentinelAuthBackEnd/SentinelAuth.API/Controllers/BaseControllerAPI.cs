@@ -1,11 +1,19 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using MediatR;
+using Microsoft.AspNetCore.Mvc;
 using SentinelAuth.Domain.Shared;
 
 namespace SentinelAuth.API.Controllers
 {
     [ApiController]
-    public class BaseControllerAPI : ControllerBase
+    public abstract class BaseControllerAPI : ControllerBase
     {
+        protected readonly ISender Sender;
+
+        protected BaseControllerAPI(ISender sender)
+        {
+            Sender = sender;
+        }
+        
         protected IActionResult HandleResult<T>(Result<T> result)
         {
             if (result.IsSuccess)

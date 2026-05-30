@@ -11,12 +11,13 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Identity.Core" Version="10.0.8" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\SentinelAuth.Application\SentinelAuth.Application.csproj" />
-    <ProjectReference Include="..\..\SentinelAuth.Domain\SentinelAuth.Domain.csproj" />
+    <ProjectReference Include="..\SentinelAuth.Application\SentinelAuth.Application.csproj" />
+    <ProjectReference Include="..\SentinelAuth.Domain\SentinelAuth.Domain.csproj" />
   </ItemGroup>
 
 </Project>

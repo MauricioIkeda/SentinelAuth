@@ -1,3 +1,4 @@
+using Scalar.AspNetCore;
 using SentinelAuth.Application.DependencyInjection;
 using SentinelAuth.Infrastructure.DependencyInjection;
 
@@ -24,6 +25,8 @@ namespace SentinelAuth.API
             if (app.Environment.IsDevelopment())
             {
                 app.MapOpenApi();
+
+                app.MapScalarApiReference();
             }
 
             app.UseHttpsRedirection();

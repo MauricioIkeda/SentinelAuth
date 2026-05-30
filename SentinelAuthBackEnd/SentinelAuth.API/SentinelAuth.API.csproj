@@ -16,10 +16,11 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+    <PackageReference Include="Scalar.AspNetCore" Version="2.14.14" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\SentinelAuth.Infrastructure\SentinelAuth.Infrastructure\SentinelAuth.Infrastructure.csproj" />
+    <ProjectReference Include="..\SentinelAuth.Infrastructure\SentinelAuth.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

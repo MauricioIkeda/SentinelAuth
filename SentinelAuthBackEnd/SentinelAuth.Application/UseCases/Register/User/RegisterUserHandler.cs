@@ -1,6 +1,6 @@
 ﻿using MediatR;
 using SentinelAuth.Application.Interfaces;
-using SentinelAuth.Domain.Entities;
+using UserDomin = SentinelAuth.Domain.Entities.User;
 using SentinelAuth.Domain.Repositories;
 using SentinelAuth.Domain.Shared;
 using SentinelAuth.Domain.ValueObjects;
@@ -36,7 +36,7 @@ public class RegisterUserHandler
         }
 
         var emailAlreadyExists = await _userRepository.ExistsEmailAsync(
-            email.Value.Value,
+            email.Value,
             cancellationToken
         );
 
@@ -52,11 +52,7 @@ public class RegisterUserHandler
 
         var passwordHash = _passwordHasher.HashPassword(command.Password);
 
-        var user = User.Create(
-            command.Name,
-            email.Value,
-            passwordHash
-        );
+        var user = UserDomin.Create(command.Name, email.Value, passwordHash);
 
         if (!user.IsSuccess)
         {

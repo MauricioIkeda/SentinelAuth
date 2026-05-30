@@ -14,10 +14,9 @@ namespace SentinelAuth.Infrastructure.Data
             _context = context;
         }
 
-        public async Task<bool> CommitAsync()
+        public async Task CommitAsync(CancellationToken cancellationToken = default)
         {
-            var success = await _context.SaveChangesAsync() > 0;
-            return success;
+            await _context.SaveChangesAsync(cancellationToken);
         }
     }
 }

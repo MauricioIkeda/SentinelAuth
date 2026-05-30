@@ -5,6 +5,7 @@ using SentinelAuth.Application.Interfaces;
 using SentinelAuth.Domain.Repositories;
 using SentinelAuth.Infrastructure.Data;
 using SentinelAuth.Infrastructure.Repositories;
+using SentinelAuth.Infrastructure.Security;
 
 namespace SentinelAuth.Infrastructure.DependencyInjection
 {
@@ -16,7 +17,10 @@ namespace SentinelAuth.Infrastructure.DependencyInjection
                 options.UseNpgsql(configuration.GetConnectionString("DefaultConnection")));
 
             services.AddScoped<IUnitOfWork, UnitOfWork>();
+            services.AddScoped<IApplicationClient, ApplicationClientRepository>();
             services.AddScoped<IUserRepository, UserRepository>();
+            services.AddScoped<IRoleRepository, RoleRepository>();
+            services.AddScoped<IPasswordHasher, MicrosoftPasswordHasher>();
 
             return services;
         }
