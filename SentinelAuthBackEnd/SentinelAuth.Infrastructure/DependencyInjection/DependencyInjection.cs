@@ -30,6 +30,7 @@ namespace SentinelAuth.Infrastructure.DependencyInjection
             services.AddScoped<IUserApplicationRoleRepository, UserApplicationRoleRepository>();
             services.AddScoped<ITokenService, TokenService>();
             services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+            services.AddScoped<IAuthorizationCodeRepository, AuthorizationCodeRepository>();
 
             return services;
         }

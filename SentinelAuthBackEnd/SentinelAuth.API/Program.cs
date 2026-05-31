@@ -1,12 +1,15 @@
 using Scalar.AspNetCore;
 using SentinelAuth.Application.DependencyInjection;
+using SentinelAuth.Domain.Entities;
+using SentinelAuth.Infrastructure.Data;
 using SentinelAuth.Infrastructure.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
 
 namespace SentinelAuth.API
 {
     public class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
 
@@ -20,6 +23,8 @@ namespace SentinelAuth.API
             builder.Services.AddInfrastructure(builder.Configuration);
 
             var app = builder.Build();
+
+            await SeedIngressinhosClientAsync(app);
 
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
@@ -36,7 +41,65 @@ namespace SentinelAuth.API
 
             app.MapControllers();
 
-            app.Run();
+            await app.RunAsync();
+        }
+
+        private static async Task SeedIngressinhosClientAsync(WebApplication app)
+        {
+            if (!app.Configuration.GetValue<bool>("Seed:Ingressinhos:Enabled"))
+            {
+                return;
+            }
+
+            using var scope = app.Services.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await dbContext.Database.MigrateAsync();
+
+            const string clientId = "ingressinhos-api";
+            var applicationClient = await dbContext.ApplicationClients
+                .FirstOrDefaultAsync(client => client.ClientId == clientId);
+
+            if (applicationClient is null)
+            {
+                var createdClient = ApplicationClient.Create(
+                    "Ingressinhos API",
+                    clientId,
+                    "Ingressinhos.API"
+                );
+
+                if (createdClient.IsFailure)
+                {
+                    throw new InvalidOperationException(createdClient.Error.Message);
+                }
+
+                applicationClient = createdClient.Value;
+                await dbContext.ApplicationClients.AddAsync(applicationClient);
+                await dbContext.SaveChangesAsync();
+            }
+
+            foreach (var roleName in new[] { "Admin", "Seller", "Client" })
+            {
+                var normalizedRoleName = roleName.ToUpperInvariant();
+                var roleExists = await dbContext.Roles.AnyAsync(role =>
+                    role.ApplicationClientId == applicationClient.Id
+                    && role.NormalizedName == normalizedRoleName
+                );
+
+                if (roleExists)
+                {
+                    continue;
+                }
+
+                var role = Role.Create(applicationClient.Id, roleName);
+                if (role.IsFailure)
+                {
+                    throw new InvalidOperationException(role.Error.Message);
+                }
+
+                await dbContext.Roles.AddAsync(role.Value);
+            }
+
+            await dbContext.SaveChangesAsync();
         }
     }
 }

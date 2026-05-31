@@ -57,6 +57,16 @@ public sealed class LoginUserHandler
             return InvalidCredentials();
         }
 
+        if (!user.IsActive)
+        {
+            return Result<LoginUserResult>.Failure(
+                Error.Validation(
+                    "Auth.UserInactive",
+                    "User is inactive."
+                )
+            );
+        }
+
         var passwordIsValid = _passwordHasher.VerifyPassword(
             request.Password,
             user.PasswordHash

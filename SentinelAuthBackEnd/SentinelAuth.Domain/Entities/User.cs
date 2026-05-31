@@ -8,6 +8,7 @@ namespace SentinelAuth.Domain.Entities
         public string Name { get; set; }
         public Email Email { get; private set; }
         public string PasswordHash { get; private set; }
+        public bool IsActive { get; private set; } = true;
 
         private User(string name, Email email, string passwordHash)
         {
@@ -51,6 +52,27 @@ namespace SentinelAuth.Domain.Entities
 
             PasswordHash = newPasswordHash;
             return Result.Success();
+        }
+
+        public Result ChangeEmail(Email email)
+        {
+            if (email == null)
+            {
+                return Result.Failure(Error.Validation("User.Email", "Email is required"));
+            }
+
+            Email = email;
+            return Result.Success();
+        }
+
+        public void Activate()
+        {
+            IsActive = true;
+        }
+
+        public void Deactivate()
+        {
+            IsActive = false;
         }
     }
 }

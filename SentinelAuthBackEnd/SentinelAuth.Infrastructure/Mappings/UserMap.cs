@@ -20,6 +20,7 @@ namespace SentinelAuth.Infrastructure.Mappings
             builder.Property(u => u.CreatedAt).IsRequired();
             builder.Property(u => u.UpdatedAt).IsRequired();
             builder.Property(u => u.PasswordHash).HasColumnName("PasswordHash").IsRequired().HasMaxLength(256);
+            builder.Property(u => u.IsActive).IsRequired().HasDefaultValue(true);
 
             builder.OwnsOne(u => u.Email, emailBuilder =>
             {

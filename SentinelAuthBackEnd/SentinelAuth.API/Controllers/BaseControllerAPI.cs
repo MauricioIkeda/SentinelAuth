@@ -35,5 +35,27 @@ namespace SentinelAuth.API.Controllers
                 detail: result.Error.Message
             );
         }
+
+        protected IActionResult HandleResult(Result result)
+        {
+            if (result.IsSuccess)
+            {
+                return NoContent();
+            }
+
+            var statusCode = result.Error.Type switch
+            {
+                ErrorType.NotFound => StatusCodes.Status404NotFound,
+                ErrorType.Validation => StatusCodes.Status400BadRequest,
+                ErrorType.Conflict => StatusCodes.Status409Conflict,
+                _ => StatusCodes.Status400BadRequest
+            };
+
+            return Problem(
+                statusCode: statusCode,
+                title: result.Error.Code,
+                detail: result.Error.Message
+            );
+        }
     }
 }
