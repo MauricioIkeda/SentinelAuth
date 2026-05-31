@@ -12,6 +12,8 @@ namespace SentinelAuth.Domain.Repositories
             CancellationToken cancellationToken = default
         );
 
+        void Remove(RefreshToken refreshToken);
+
         Task<RefreshToken?> GetByTokenHashAsync(
             string tokenHash,
             CancellationToken cancellationToken = default

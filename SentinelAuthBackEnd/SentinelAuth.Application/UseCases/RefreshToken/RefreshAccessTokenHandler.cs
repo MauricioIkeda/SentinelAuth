@@ -65,6 +65,8 @@ public sealed class RefreshAccessTokenHandler
 
         if (refreshToken.IsExpired)
         {
+            _refreshTokenRepository.Remove(refreshToken);
+            await _unitOfWork.CommitAsync(cancellationToken);
             return Result<RefreshAccessTokenResult>.Failure(
                 Error.Validation("RefreshToken.Expired", "Refresh token is expired.")
             );
@@ -72,6 +74,8 @@ public sealed class RefreshAccessTokenHandler
 
         if (refreshToken.IsRevoked)
         {
+            _refreshTokenRepository.Remove(refreshToken);
+            await _unitOfWork.CommitAsync(cancellationToken);
             return Result<RefreshAccessTokenResult>.Failure(
                 Error.Validation("RefreshToken.Revoked", "Refresh token is revoked.")
             );
@@ -104,6 +108,7 @@ public sealed class RefreshAccessTokenHandler
         );
 
         refreshToken.Revoke();
+        _refreshTokenRepository.Remove(refreshToken);
 
         var accessToken = _tokenService.GenerateAccessToken(
             user,

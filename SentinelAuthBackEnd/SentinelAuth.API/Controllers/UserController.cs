@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using SentinelAuth.Application.UseCases.Login.User;
 using SentinelAuth.Application.UseCases.Register.User;
 using SentinelAuth.Application.UseCases.RefreshToken;
+using SentinelAuth.Application.UseCases.Logout;
 
 namespace SentinelAuth.API.Controllers
 {
@@ -32,6 +33,14 @@ namespace SentinelAuth.API.Controllers
 
         [HttpPost("refresh")]
         public async Task<IActionResult> Refresh(RefreshAccessTokenCommand command, CancellationToken cancellationToken)
+        {
+            var result = await Sender.Send(command, cancellationToken);
+
+            return HandleResult(result);
+        }
+
+        [HttpPost("logout")]
+        public async Task<IActionResult> Logout(LogoutCommand command, CancellationToken cancellationToken)
         {
             var result = await Sender.Send(command, cancellationToken);
 

@@ -27,6 +27,11 @@ namespace SentinelAuth.Infrastructure.Repositories
             );
         }
 
+        public void Remove(RefreshToken refreshToken)
+        {
+            _dbContext.RefreshTokens.Remove(refreshToken);
+        }
+
         public Task<RefreshToken?> GetByTokenHashAsync(
             string tokenHash,
             CancellationToken cancellationToken = default)
