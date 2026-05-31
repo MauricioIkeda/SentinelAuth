@@ -89,8 +89,10 @@ type ApplicationDetails = {
 
 const runtimeApiBaseUrl =
   typeof window === 'undefined'
-    ? 'http://localhost:5254'
-    : `${window.location.protocol}//${window.location.hostname}:5254`
+    ? 'https://auth-api.seu-dominio.com.br'
+    : window.location.hostname.startsWith('auth.')
+      ? `${window.location.protocol}//${window.location.hostname.replace(/^auth\./, 'auth-api.')}`
+      : `${window.location.protocol}//${window.location.hostname}:5254`
 
 const apiBaseUrl = (
   import.meta.env.VITE_SENTINEL_AUTH_API_URL || runtimeApiBaseUrl
@@ -891,9 +893,12 @@ function MetricMini({ label, value }: { label: string; value: number }) {
 }
 
 function DocsTab() {
+  const docsAuthFrontendUrl =
+    typeof window === 'undefined' ? 'https://auth.seu-dominio.com.br' : window.location.origin
+  const docsAuthApiUrl = apiBaseUrl
   const authorizeUrl =
-    'http://localhost:5173/authorize?client_id=ingressinhos-api&redirect_uri=ingressinhos://auth/callback&state=STATE_ALEATORIO'
-  const createApplication = `POST http://localhost:5254/api/ApplicationClient/register
+    `${docsAuthFrontendUrl}/authorize?client_id=ingressinhos-api&redirect_uri=ingressinhos://auth/callback&state=STATE_ALEATORIO`
+  const createApplication = `POST ${docsAuthApiUrl}/api/ApplicationClient/register
 Content-Type: application/json
 
 {
@@ -910,7 +915,7 @@ Resposta 200:
   "audience": "Ingressinhos.API",
   "isActive": true
 }`
-  const createRoles = `POST http://localhost:5254/api/Role/register
+  const createRoles = `POST ${docsAuthApiUrl}/api/Role/register
 Content-Type: application/json
 
 {
@@ -918,7 +923,7 @@ Content-Type: application/json
   "name": "client"
 }
 
-POST http://localhost:5254/api/Role/register
+POST ${docsAuthApiUrl}/api/Role/register
 Content-Type: application/json
 
 {
@@ -932,7 +937,7 @@ Resposta 200:
   "applicationClientId": 1,
   "name": "client"
 }`
-  const registerAndLogin = `POST http://localhost:5254/api/User/register
+  const registerAndLogin = `POST ${docsAuthApiUrl}/api/User/register
 Content-Type: application/json
 
 {
@@ -941,7 +946,7 @@ Content-Type: application/json
   "password": "Senha@123"
 }
 
-POST http://localhost:5254/api/User/login
+POST ${docsAuthApiUrl}/api/User/login
 Content-Type: application/json
 
 {
@@ -959,13 +964,13 @@ Resposta do login:
   const openCentralLogin = `const state = crypto.randomUUID(); // salve antes do redirect
 const redirectUri = 'ingressinhos://auth/callback';
 
-const url = new URL('http://localhost:5173/authorize');
+const url = new URL('${docsAuthFrontendUrl}/authorize');
 url.searchParams.set('client_id', 'ingressinhos-api');
 url.searchParams.set('redirect_uri', redirectUri);
 url.searchParams.set('state', state);
 
 window.location.href = url.toString();`
-  const authorizePost = `POST http://localhost:5254/api/oauth/authorize
+  const authorizePost = `POST ${docsAuthApiUrl}/api/oauth/authorize
 Content-Type: application/json
 
 {
@@ -996,7 +1001,7 @@ if (receivedState !== expectedState) {
 }
 
 // code nao e token. Ele so serve para pedir accessToken e refreshToken.`
-  const exchangeCode = `POST http://localhost:5254/api/oauth/token
+  const exchangeCode = `POST ${docsAuthApiUrl}/api/oauth/token
 Content-Type: application/json
 
 {
@@ -1011,7 +1016,7 @@ Resposta 200:
   "refreshToken": "7d2f...",
   "expiresAt": "2026-05-31T15:20:00-03:00"
 }`
-  const assignRole = `POST http://localhost:5254/api/user-roles/assign
+  const assignRole = `POST ${docsAuthApiUrl}/api/user-roles/assign
 Content-Type: application/json
 
 {
@@ -1027,7 +1032,7 @@ Resposta 200:
   "applicationClientId": 1,
   "roleId": 10
 }`
-  const refreshToken = `POST http://localhost:5254/api/User/refresh
+  const refreshToken = `POST ${docsAuthApiUrl}/api/User/refresh
 Content-Type: application/json
 
 {
