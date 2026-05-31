@@ -53,4 +53,32 @@ public class Role : BaseEntity
 
         return Result<Role>.Success(new Role(applicationClientId, name));
     }
+
+    public Result Rename(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return Result.Failure(
+                Error.Validation(
+                    "Role.Name",
+                    "Name is required"
+                )
+            );
+        }
+
+        if (name.Length > 100)
+        {
+            return Result.Failure(
+                Error.Validation(
+                    "Role.Name",
+                    "Name must have at most 100 characters"
+                )
+            );
+        }
+
+        Name = name.Trim();
+        NormalizedName = name.Trim().ToUpperInvariant();
+
+        return Result.Success();
+    }
 }

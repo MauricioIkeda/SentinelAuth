@@ -18,6 +18,25 @@ namespace SentinelAuth.API
             builder.Services.AddControllers();
             // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
             builder.Services.AddOpenApi();
+            builder.Services.AddCors(options =>
+            {
+                options.AddPolicy("SentinelAuthFrontend", policy =>
+                {
+                    var allowedOrigins = builder.Configuration
+                        .GetSection("Cors:AllowedOrigins")
+                        .Get<string[]>()
+                        ?? new[]
+                        {
+                            "http://localhost:5173",
+                            "http://127.0.0.1:5173"
+                        };
+
+                    policy
+                        .WithOrigins(allowedOrigins)
+                        .AllowAnyHeader()
+                        .AllowAnyMethod();
+                });
+            });
 
             builder.Services.AddApplication();
             builder.Services.AddInfrastructure(builder.Configuration);
@@ -35,6 +54,8 @@ namespace SentinelAuth.API
             }
 
             app.UseHttpsRedirection();
+
+            app.UseCors("SentinelAuthFrontend");
 
             app.UseAuthorization();
 
