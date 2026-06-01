@@ -11,23 +11,32 @@ public sealed class RegisterApplicationClientHandler
 {
     private readonly IApplicationClientRepository _applicationClientRepositoryRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ITokenService _tokenService;
 
     public RegisterApplicationClientHandler(
         IApplicationClientRepository applicationClientRepositoryRepository,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        ITokenService tokenService)
     {
         _applicationClientRepositoryRepository = applicationClientRepositoryRepository;
         _unitOfWork = unitOfWork;
+        _tokenService = tokenService;
     }
 
     public async Task<Result<RegisterApplicationClientResult>> Handle(
         RegisterApplicationClientCommand command,
         CancellationToken cancellationToken)
     {
+        var clientSecretHash = string.IsNullOrWhiteSpace(command.ClientSecret)
+            ? null
+            : _tokenService.HashClientSecret(command.ClientSecret);
+
         var applicationClient = ApplicationClientDomain.Create(
             command.Name,
             command.ClientId,
-            command.Audience
+            command.Audience,
+            clientSecretHash,
+            command.AllowRoleAssignment && !string.IsNullOrWhiteSpace(clientSecretHash)
         );
 
         if (!applicationClient.IsSuccess)

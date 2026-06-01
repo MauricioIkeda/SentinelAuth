@@ -24,6 +24,13 @@ public sealed class ApplicationClientMap : IEntityTypeConfiguration<ApplicationC
             .IsRequired()
             .HasMaxLength(200);
 
+        builder.Property(applicationClient => applicationClient.ClientSecretHash)
+            .HasMaxLength(256);
+
+        builder.Property(applicationClient => applicationClient.AllowRoleAssignment)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         builder.Property(applicationClient => applicationClient.IsActive)
             .IsRequired();
 

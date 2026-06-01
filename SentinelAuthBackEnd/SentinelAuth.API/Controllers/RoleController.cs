@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SentinelAuth.Application.UseCases.Register.Role;
 
@@ -12,6 +13,7 @@ namespace SentinelAuth.API.Controllers
         }
 
         [HttpPost("register")]
+        [Authorize(Policy = "SentinelAdminOnly")]
         public async Task<IActionResult> Register(
             RegisterRoleCommand command,
             CancellationToken cancellationToken)

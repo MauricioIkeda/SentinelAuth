@@ -87,9 +87,18 @@ type ApplicationDetails = {
   assignments: AssignmentSummary[]
 }
 
+type LoginResult = {
+  accessToken: string
+  refreshToken: string
+  expiresAt: string
+}
+
+const adminClientId = 'sentinel-auth-admin'
+const adminTokenStorageKey = 'sentinel_admin_access_token'
+
 const runtimeApiBaseUrl =
   typeof window === 'undefined'
-    ? 'https://auth-api.seu-dominio.com.br'
+    ? 'http://localhost:5254'
     : window.location.hostname.startsWith('auth.')
       ? `${window.location.protocol}//${window.location.hostname.replace(/^auth\./, 'auth-api.')}`
       : `${window.location.protocol}//${window.location.hostname}:5254`
@@ -123,7 +132,7 @@ async function apiRequest<T>(path: string, init?: RequestInit) {
   })
 
   if (!response.ok) {
-    throw new Error(await readApiError(response))
+    throw new Error(`${response.status}: ${await readApiError(response)}`)
   }
 
   if (response.status === 204) {
@@ -131,6 +140,46 @@ async function apiRequest<T>(path: string, init?: RequestInit) {
   }
 
   return (await response.json()) as T
+}
+
+function getStoredAdminToken() {
+  if (typeof window === 'undefined') return ''
+  return localStorage.getItem(adminTokenStorageKey) ?? ''
+}
+
+function storeAdminToken(token: string) {
+  localStorage.setItem(adminTokenStorageKey, token)
+}
+
+function clearAdminToken() {
+  localStorage.removeItem(adminTokenStorageKey)
+}
+
+function isAdminAuthError(error: unknown) {
+  return (
+    error instanceof Error &&
+    (error.message.startsWith('401:') || error.message.startsWith('403:'))
+  )
+}
+
+async function adminApiRequest<T>(path: string, init?: RequestInit) {
+  const token = getStoredAdminToken()
+
+  try {
+    return await apiRequest<T>(path, {
+      ...init,
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...init?.headers,
+      },
+    })
+  } catch (requestError) {
+    if (isAdminAuthError(requestError)) {
+      clearAdminToken()
+    }
+
+    throw requestError
+  }
 }
 
 function getAuthorizeContext() {
@@ -357,7 +406,11 @@ function Field({
 }
 
 function AdminPage() {
-  const [tab, setTab] = useState<AdminTab>('applications')
+  const initialAdminTab: AdminTab =
+    typeof window !== 'undefined' && window.location.pathname.toLowerCase().startsWith('/docs')
+      ? 'docs'
+      : 'applications'
+  const [tab, setTab] = useState<AdminTab>(initialAdminTab)
   const [overview, setOverview] = useState<AdminOverview>({
     applications: [],
     users: [],
@@ -370,6 +423,8 @@ function AdminPage() {
     name: '',
     clientId: '',
     audience: '',
+    clientSecret: '',
+    allowRoleAssignment: true,
   })
   const [newRole, setNewRole] = useState('')
   const [editingRoleId, setEditingRoleId] = useState<number | null>(null)
@@ -378,10 +433,11 @@ function AdminPage() {
     userId: '',
     roleId: '',
   })
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(initialAdminTab === 'applications')
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
+  const [adminToken, setAdminToken] = useState(getStoredAdminToken)
 
   const filteredApplications = overview.applications.filter((application) => {
     const value = `${application.name} ${application.clientId} ${application.audience}`
@@ -395,7 +451,7 @@ function AdminPage() {
     setError('')
 
     try {
-      const data = await apiRequest<AdminOverview>('/api/admin/overview')
+      const data = await adminApiRequest<AdminOverview>('/api/admin/overview')
       const applicationId = nextApplicationId || data.applications[0]?.id.toString() || ''
 
       setOverview(data)
@@ -403,7 +459,7 @@ function AdminPage() {
 
       if (applicationId) {
         setDetails(
-          await apiRequest<ApplicationDetails>(
+          await adminApiRequest<ApplicationDetails>(
             `/api/admin/applications/${applicationId}/details`,
           ),
         )
@@ -411,6 +467,10 @@ function AdminPage() {
         setDetails(null)
       }
     } catch (requestError) {
+      if (isAdminAuthError(requestError)) {
+        setAdminToken('')
+      }
+
       setError(
         requestError instanceof Error
           ? requestError.message
@@ -432,15 +492,17 @@ function AdminPage() {
     }
 
     setDetails(
-      await apiRequest<ApplicationDetails>(
+      await adminApiRequest<ApplicationDetails>(
         `/api/admin/applications/${applicationId}/details`,
       ),
     )
   }
 
   useEffect(() => {
-    void loadAdminData()
-  }, [])
+    if (tab === 'applications' && adminToken) {
+      void loadAdminData()
+    }
+  }, [tab, adminToken])
 
   async function runAction(action: () => Promise<void>, successMessage: string) {
     setIsSaving(true)
@@ -452,6 +514,10 @@ function AdminPage() {
       setStatus(successMessage)
       await loadAdminData(selectedApplicationId)
     } catch (requestError) {
+      if (isAdminAuthError(requestError)) {
+        setAdminToken('')
+      }
+
       setError(requestError instanceof Error ? requestError.message : 'Falha ao salvar.')
     } finally {
       setIsSaving(false)
@@ -462,11 +528,17 @@ function AdminPage() {
     event.preventDefault()
 
     await runAction(async () => {
-      await apiRequest<ApplicationSummary>('/api/ApplicationClient/register', {
+      await adminApiRequest<ApplicationSummary>('/api/ApplicationClient/register', {
         method: 'POST',
         body: JSON.stringify(newApplication),
       })
-      setNewApplication({ name: '', clientId: '', audience: '' })
+      setNewApplication({
+        name: '',
+        clientId: '',
+        audience: '',
+        clientSecret: '',
+        allowRoleAssignment: true,
+      })
     }, 'Aplicacao cadastrada.')
   }
 
@@ -474,7 +546,7 @@ function AdminPage() {
     event.preventDefault()
 
     await runAction(async () => {
-      await apiRequest<RoleSummary>('/api/Role/register', {
+      await adminApiRequest<RoleSummary>('/api/Role/register', {
         method: 'POST',
         body: JSON.stringify({
           applicationClientId: Number(selectedApplicationId),
@@ -487,7 +559,7 @@ function AdminPage() {
 
   async function renameRole(roleId: number) {
     await runAction(async () => {
-      await apiRequest(`/api/admin/roles/${roleId}`, {
+      await adminApiRequest(`/api/admin/roles/${roleId}`, {
         method: 'PUT',
         body: JSON.stringify({ name: editingRoleName }),
       })
@@ -498,7 +570,7 @@ function AdminPage() {
 
   async function deleteRole(roleId: number) {
     await runAction(async () => {
-      await apiRequest(`/api/admin/roles/${roleId}`, { method: 'DELETE' })
+      await adminApiRequest(`/api/admin/roles/${roleId}`, { method: 'DELETE' })
     }, 'Role removida.')
   }
 
@@ -506,11 +578,10 @@ function AdminPage() {
     event.preventDefault()
 
     await runAction(async () => {
-      await apiRequest('/api/user-roles/assign', {
+      await adminApiRequest(`/api/admin/applications/${selectedApplicationId}/assignments`, {
         method: 'POST',
         body: JSON.stringify({
           userId: Number(newAssignment.userId),
-          applicationClientId: Number(selectedApplicationId),
           roleId: Number(newAssignment.roleId),
         }),
       })
@@ -520,8 +591,26 @@ function AdminPage() {
 
   async function deleteAssignment(assignmentId: number) {
     await runAction(async () => {
-      await apiRequest(`/api/admin/assignments/${assignmentId}`, { method: 'DELETE' })
+      await adminApiRequest(`/api/admin/assignments/${assignmentId}`, { method: 'DELETE' })
     }, 'Atribuicao removida.')
+  }
+
+  function handleAdminAuthenticated(token: string) {
+    storeAdminToken(token)
+    setAdminToken(token)
+    setError('')
+    setStatus('Sessao administrativa iniciada.')
+    setTab('applications')
+    void loadAdminData()
+  }
+
+  function handleAdminLogout() {
+    clearAdminToken()
+    setAdminToken('')
+    setOverview({ applications: [], users: [], assignments: [] })
+    setDetails(null)
+    setSelectedApplicationId('')
+    setStatus('Sessao administrativa encerrada.')
   }
 
   return (
@@ -558,19 +647,30 @@ function AdminPage() {
             <p className="context-label">Painel</p>
             <h1>Administracao do SentinelAuth</h1>
           </div>
-          <button type="button" className="ghost-action" onClick={() => loadAdminData()}>
-            <RefreshCw size={18} />
-            Atualizar
-          </button>
+          <div className="admin-header-actions">
+            {tab === 'applications' && adminToken && (
+              <button type="button" className="ghost-action" onClick={() => loadAdminData()}>
+                <RefreshCw size={18} />
+                Atualizar
+              </button>
+            )}
+            {adminToken && (
+              <button type="button" className="ghost-action" onClick={handleAdminLogout}>
+                Sair
+              </button>
+            )}
+          </div>
         </header>
 
         {error && <p className="message error">{error}</p>}
         {status && <p className="message success">{status}</p>}
 
-        {isLoading ? (
-          <div className="empty-state">Carregando dados...</div>
-        ) : tab === 'docs' ? (
+        {tab === 'docs' ? (
           <DocsTab />
+        ) : !adminToken ? (
+          <AdminLogin onAuthenticated={handleAdminAuthenticated} />
+        ) : isLoading ? (
+          <div className="empty-state">Carregando dados...</div>
         ) : (
           <section className="admin-workspace">
             <aside className="application-browser">
@@ -630,6 +730,27 @@ function AdminPage() {
                   placeholder="Audience"
                   required
                 />
+                <input
+                  value={newApplication.clientSecret}
+                  onChange={(event) =>
+                    setNewApplication({ ...newApplication, clientSecret: event.target.value })
+                  }
+                  placeholder="client secret do backend"
+                  type="password"
+                />
+                <label className="checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={newApplication.allowRoleAssignment}
+                    onChange={(event) =>
+                      setNewApplication({
+                        ...newApplication,
+                        allowRoleAssignment: event.target.checked,
+                      })
+                    }
+                  />
+                  Permitir atribuir roles via API
+                </label>
                 <button type="submit" className="primary-action small" disabled={isSaving}>
                   <Plus size={17} />
                   Criar app
@@ -666,6 +787,89 @@ function AdminPage() {
         )}
       </section>
     </main>
+  )
+}
+
+function AdminLogin({ onAuthenticated }: { onAuthenticated: (token: string) => void }) {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState('')
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setIsSubmitting(true)
+    setError('')
+
+    try {
+      const result = await apiRequest<LoginResult>('/api/User/login', {
+        method: 'POST',
+        body: JSON.stringify({
+          email,
+          password,
+          clientId: adminClientId,
+        }),
+      })
+
+      onAuthenticated(result.accessToken)
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Nao foi possivel entrar na administracao.',
+      )
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <section className="admin-login-card">
+      <div>
+        <p className="context-label">Acesso restrito</p>
+        <h2>Entrar como administrador</h2>
+        <p>
+          Use uma conta com role <code>SentinelSuperAdmin</code> ou{' '}
+          <code>SentinelAdmin</code> no client <code>{adminClientId}</code>.
+        </p>
+      </div>
+      <form className="auth-form" onSubmit={handleSubmit}>
+        <Field label="Email" icon={<Mail size={19} aria-hidden="true" />}>
+          <input
+            autoComplete="email"
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="admin@email.com"
+            required
+          />
+        </Field>
+        <Field label="Senha" icon={<Lock size={19} aria-hidden="true" />}>
+          <input
+            autoComplete="current-password"
+            type={showPassword ? 'text' : 'password'}
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            placeholder="Senha administrativa"
+            required
+          />
+          <button
+            type="button"
+            className="icon-button"
+            onClick={() => setShowPassword((current) => !current)}
+            aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+          >
+            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
+        </Field>
+        {error && <p className="message error">{error}</p>}
+        <button type="submit" className="primary-action" disabled={isSubmitting}>
+          {isSubmitting ? 'Entrando...' : 'Entrar no painel'}
+          <ArrowRight size={19} aria-hidden="true" />
+        </button>
+      </form>
+    </section>
   )
 }
 
@@ -896,100 +1100,86 @@ function DocsTab() {
   const docsAuthFrontendUrl =
     typeof window === 'undefined' ? 'https://auth.seu-dominio.com.br' : window.location.origin
   const docsAuthApiUrl = apiBaseUrl
-  const authorizeUrl =
-    `${docsAuthFrontendUrl}/authorize?client_id=ingressinhos-api&redirect_uri=ingressinhos://auth/callback&state=STATE_ALEATORIO`
-  const createApplication = `POST ${docsAuthApiUrl}/api/ApplicationClient/register
+
+  const registerApplication = `# Operacao administrativa: cadastre uma API/app confiavel
+POST ${docsAuthApiUrl}/api/ApplicationClient/register
+Authorization: Bearer TOKEN_SENTINEL_ADMIN
 Content-Type: application/json
 
 {
-  "name": "Ingressinhos API",
-  "clientId": "ingressinhos-api",
-  "audience": "Ingressinhos.API"
-}
-
-Resposta 200:
-{
-  "id": 1,
-  "name": "Ingressinhos API",
-  "clientId": "ingressinhos-api",
-  "audience": "Ingressinhos.API",
-  "isActive": true
-}`
-  const createRoles = `POST ${docsAuthApiUrl}/api/Role/register
-Content-Type: application/json
-
-{
-  "applicationClientId": 1,
-  "name": "client"
-}
-
-POST ${docsAuthApiUrl}/api/Role/register
-Content-Type: application/json
-
-{
-  "applicationClientId": 1,
-  "name": "seller"
+  "name": "MeuApp API",
+  "clientId": "meuapp-api",
+  "audience": "MeuApp.API",
+  "clientSecret": "segredo-forte-que-fica-so-no-backend",
+  "allowRoleAssignment": true
 }
 
 Resposta 200:
 {
   "id": 10,
-  "applicationClientId": 1,
-  "name": "client"
-}`
-  const registerAndLogin = `POST ${docsAuthApiUrl}/api/User/register
+  "name": "MeuApp API",
+  "clientId": "meuapp-api",
+  "audience": "MeuApp.API",
+  "isActive": true
+}
+
+# Guarde o clientSecret apenas no backend do app consumidor.
+# Ele sera usado no grant client_credentials.`
+
+  const createRoles = `# Operacao administrativa: crie roles dentro da aplicacao
+POST ${docsAuthApiUrl}/api/Role/register
+Authorization: Bearer TOKEN_SENTINEL_ADMIN
 Content-Type: application/json
 
 {
-  "name": "Maria Silva",
-  "email": "maria@email.com",
-  "password": "Senha@123"
+  "applicationClientId": 10,
+  "name": "Admin"
 }
 
-POST ${docsAuthApiUrl}/api/User/login
+POST ${docsAuthApiUrl}/api/Role/register
+Authorization: Bearer TOKEN_SENTINEL_ADMIN
 Content-Type: application/json
 
 {
-  "email": "maria@email.com",
-  "password": "Senha@123",
-  "clientId": "ingressinhos-api"
+  "applicationClientId": 10,
+  "name": "User"
 }
 
-Resposta do login:
-{
-  "accessToken": "eyJhbGciOi...",
-  "refreshToken": "7d2f...",
-  "expiresAt": "2026-05-31T15:20:00-03:00"
-}`
-  const openCentralLogin = `const state = crypto.randomUUID(); // salve antes do redirect
-const redirectUri = 'ingressinhos://auth/callback';
+# Role sempre pertence a um ApplicationClient.
+# Um usuario pode ser Admin no MeuApp e Seller no Ingressinhos.`
 
+  const frontendConfig = `SENTINEL_AUTH_FRONTEND_URL=https://auth.seu-dominio.com.br
+SENTINEL_AUTH_API_URL=https://auth-api.seu-dominio.com.br
+CLIENT_ID=meuapp-api
+REDIRECT_URI=meuapp://auth/callback
+
+# Mobile: meuapp://auth/callback
+# Web:    https://meuapp.com/auth/callback`
+
+  const backendConfig = `SentinelAuthClient__BaseUrl=https://auth-api.seu-dominio.com.br
+SentinelAuthClient__ClientId=meuapp-api
+SentinelAuthClient__ClientSecret=segredo-forte-somente-no-backend
+SentinelAuthClient__ApplicationClientId=10
+SentinelAuthClient__AdminRoleId=25
+SentinelAuthClient__UserRoleId=26
+
+Jwt__Issuer=SentinelAuth
+Jwt__Audience=MeuApp.API
+Jwt__SecretKey=mesma-chave-usada-no-SentinelAuth`
+
+  const openCentralLogin = `const state = crypto.randomUUID();
+sessionStorage.setItem('sentinel_oauth_state', state);
+
+const redirectUri = 'meuapp://auth/callback';
 const url = new URL('${docsAuthFrontendUrl}/authorize');
-url.searchParams.set('client_id', 'ingressinhos-api');
+url.searchParams.set('client_id', 'meuapp-api');
 url.searchParams.set('redirect_uri', redirectUri);
 url.searchParams.set('state', state);
 
 window.location.href = url.toString();`
-  const authorizePost = `POST ${docsAuthApiUrl}/api/oauth/authorize
-Content-Type: application/json
 
-{
-  "email": "maria@email.com",
-  "password": "Senha@123",
-  "clientId": "ingressinhos-api",
-  "redirectUri": "ingressinhos://auth/callback",
-  "state": "STATE_ALEATORIO"
-}
-
-Resposta 200:
-{
-  "code": "codigo-curto-de-uso-unico",
-  "redirectUri": "ingressinhos://auth/callback",
-  "callbackUrl": "ingressinhos://auth/callback?code=codigo-curto-de-uso-unico&state=STATE_ALEATORIO",
-  "expiresAt": "2026-05-31T15:10:00-03:00"
-}`
-  const callbackHandling = `// Callback recebido:
-// ingressinhos://auth/callback?code=abc123&state=STATE_ALEATORIO
+  const callbackHandling = `// Callback recebido pelo app:
+// meuapp://auth/callback?code=abc123&state=STATE_ALEATORIO
 
 const code = callbackUrl.searchParams.get('code');
 const receivedState = callbackUrl.searchParams.get('state');
@@ -1000,38 +1190,133 @@ if (receivedState !== expectedState) {
   throw new Error('State invalido. Possivel callback antigo ou tentativa de CSRF.');
 }
 
-// code nao e token. Ele so serve para pedir accessToken e refreshToken.`
+// code nao e access token.
+// code e temporario, uso unico, e serve apenas para pedir os tokens reais.`
+
   const exchangeCode = `POST ${docsAuthApiUrl}/api/oauth/token
 Content-Type: application/json
 
 {
+  "grantType": "authorization_code",
   "code": "codigo-curto-de-uso-unico",
-  "clientId": "ingressinhos-api",
-  "redirectUri": "ingressinhos://auth/callback"
+  "clientId": "meuapp-api",
+  "redirectUri": "meuapp://auth/callback"
 }
 
 Resposta 200:
 {
-  "accessToken": "eyJhbGciOi...",
-  "refreshToken": "7d2f...",
-  "expiresAt": "2026-05-31T15:20:00-03:00"
+  "accessToken": "jwt-do-usuario",
+  "refreshToken": "refresh-token-do-usuario",
+  "expiresAt": "2026-06-01T17:00:00Z"
 }`
-  const assignRole = `POST ${docsAuthApiUrl}/api/user-roles/assign
+
+  const userJwt = `{
+  "sub": "123",
+  "email": "usuario@email.com",
+  "name": "Usuario",
+  "client_id": "meuapp-api",
+  "role": ["User"],
+  "iss": "SentinelAuth",
+  "aud": "MeuApp.API",
+  "exp": 1780333200
+}`
+
+  const validateApi = `builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = "SentinelAuth",
+            ValidateAudience = true,
+            ValidAudience = "MeuApp.API",
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(jwtSecret)),
+            ValidateLifetime = true,
+            RoleClaimType = ClaimTypes.Role,
+            ClockSkew = TimeSpan.FromMinutes(1)
+        };
+    });
+
+app.UseAuthentication();
+app.UseAuthorization();`
+
+  const protectEndpoint = `[Authorize]
+[ApiController]
+[Route("api/orders")]
+public sealed class OrdersController : ControllerBase
+{
+    [HttpGet("me")]
+    public IActionResult MyOrders() => Ok();
+
+    [Authorize(Roles = "Admin")]
+    [HttpGet("admin")]
+    public IActionResult AdminList() => Ok();
+}`
+
+  const clientCredentials = `# Chamado somente pelo backend do seu app. Nunca pelo frontend.
+POST ${docsAuthApiUrl}/api/oauth/token
 Content-Type: application/json
 
 {
-  "userId": 22,
-  "applicationClientId": 1,
-  "roleId": 10
+  "grantType": "client_credentials",
+  "clientId": "meuapp-api",
+  "clientSecret": "segredo-forte-somente-no-backend",
+  "scope": "roles:assign"
 }
 
 Resposta 200:
 {
-  "id": 55,
-  "userId": 22,
-  "applicationClientId": 1,
-  "roleId": 10
+  "accessToken": "jwt-da-aplicacao",
+  "refreshToken": "",
+  "expiresAt": "2026-06-01T17:10:00Z"
 }`
+
+  const appJwt = `{
+  "sub": "app:meuapp-api",
+  "client_id": "meuapp-api",
+  "application_client_id": "10",
+  "token_use": "client_credentials",
+  "scope": "roles:assign",
+  "aud": "SentinelAuth.API"
+}`
+
+  const assignRole = `POST ${docsAuthApiUrl}/api/user-roles/assign
+Authorization: Bearer jwt-da-aplicacao
+Content-Type: application/json
+
+{
+  "userId": 123,
+  "applicationClientId": 10,
+  "roleId": 26
+}
+
+# O SentinelAuth valida:
+# 1. token_use == client_credentials
+# 2. scope contem roles:assign
+# 3. application_client_id do token == applicationClientId do body
+# 4. a role pertence a essa aplicacao
+# 5. o usuario existe`
+
+  const onboardingFlow = `GET /api/onboarding/profile-status
+Authorization: Bearer jwt-do-usuario
+
+Resposta:
+{
+  "hasClientProfile": false,
+  "hasSellerProfile": false
+}
+
+Fluxo recomendado:
+1. Usuario loga pelo SentinelAuth.
+2. Seu backend identifica o usuario pelo JWT.
+3. Se nao existe perfil local, pergunte o tipo de perfil.
+4. Crie Client/Seller/Member no banco local.
+5. Seu backend usa client_credentials e chama assignRole.
+6. Peca refresh ou novo login para o JWT vir com a role atualizada.`
+
   const refreshToken = `POST ${docsAuthApiUrl}/api/User/refresh
 Content-Type: application/json
 
@@ -1044,275 +1329,134 @@ Resposta 200:
 {
   "accessToken": "novo-jwt-com-roles-atualizadas",
   "refreshToken": "novo-refresh-token",
-  "expiresAt": "2026-05-31T16:20:00-03:00"
+  "expiresAt": "2026-06-01T18:00:00Z"
 }`
-  const validateApi = `builder.Services
-    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidIssuer = "SentinelAuth",
-            ValidateAudience = true,
-            ValidAudience = "Ingressinhos.API",
-            ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(secretKey)),
-            ValidateLifetime = true,
-            ClockSkew = TimeSpan.FromMinutes(1)
-        };
-    });
 
-app.UseAuthentication();
-app.UseAuthorization();`
-  const protectEndpoint = `[Authorize]
-[ApiController]
-[Route("api/events")]
-public sealed class EventsController : ControllerBase
-{
-    [HttpGet]
-    public IActionResult List() => Ok();
+  const ingressinhosSeed = `// SentinelAuth.API/Program.cs
+await SeedIngressinhosClientAsync(app);
 
-    [Authorize(Roles = "seller")]
-    [HttpPost]
-    public IActionResult Create(CreateEventRequest request) => Ok();
-}`
-  const onboardingApi = `GET /api/onboarding/profile-status
-Authorization: Bearer accessToken
+// O seed garante:
+ApplicationClient:
+- Name: Ingressinhos API
+- ClientId: ingressinhos-api
+- Audience: Ingressinhos.API
+- ClientSecretHash: hash do Seed__Ingressinhos__ClientSecret
+- AllowRoleAssignment: true
 
-Resposta:
-{
-  "hasClientProfile": false,
-  "hasSellerProfile": false
-}
+Roles:
+- Admin
+- Seller
+- Client`
 
-// Se nao tem perfil:
-// 1. Pergunte "cliente ou vendedor?"
-// 2. Crie o perfil local com CPF/CNPJ, loja etc.
-// 3. Atribua role client ou seller no SentinelAuth.
-// 4. Peça novo token para receber a role atualizada.`
-  const migration = `1. Cadastre sua API no SentinelAuth e guarde applicationClientId, clientId e audience.
-2. Crie roles equivalentes ao sistema antigo: admin, client, seller, manager etc.
-3. Para cada usuario existente, crie ou vincule uma conta global SentinelAuth.
-4. Crie as atribuicoes em /api/user-roles/assign.
-5. Troque sua tela local de senha pelo redirect para /authorize.
-6. Na volta do callback, troque code por tokens em /api/oauth/token.
-7. Valide JWT na API local e mantenha dados de negocio no banco local.
-8. Depois de mudar role, solicite novo token via refresh ou novo login.`
+  const ingressinhosCompose = `# docker-compose.yml
+sentinel-auth-api:
+  environment:
+    Seed__Ingressinhos__Enabled: "true"
+    Seed__Ingressinhos__ClientSecret: \${SENTINEL_AUTH_INGRESSINHOS_CLIENT_SECRET:?Set no .env}
+
+ingressinhos-api:
+  environment:
+    SentinelAuthClient__BaseUrl: http://sentinel-auth-api:8080
+    SentinelAuthClient__ClientId: ingressinhos-api
+    SentinelAuthClient__ClientSecret: \${SENTINEL_AUTH_INGRESSINHOS_CLIENT_SECRET:?Set no .env}
+    SentinelAuthClient__ApplicationClientId: 1
+    SentinelAuthClient__AdminRoleId: 1
+    SentinelAuthClient__SellerRoleId: 2
+    SentinelAuthClient__ClientRoleId: 3`
+
+  const ingressinhosRequestAuth = `// Generic.Application/Utils/Services/RequestAuth.cs
+CreateUser(...):
+1. POST api/User/register
+2. Recebe userId
+3. POST api/oauth/token com grantType=client_credentials
+4. POST api/user-roles/assign com Authorization: Bearer token-da-aplicacao
+
+AssignRole(...):
+1. Busca roleId na configuracao
+2. Pede/cacheia token client_credentials
+3. Chama assignRole protegido`
+
+  const migration = `Checklist para um novo projeto:
+[ ] Criar ApplicationClient no SentinelAuth.
+[ ] Criar roles para esse ApplicationClient.
+[ ] Configurar clientSecret forte apenas no backend.
+[ ] Marcar AllowRoleAssignment=true se o app puder atribuir roles.
+[ ] Configurar frontend com clientId e redirectUri.
+[ ] Configurar backend com clientId, clientSecret, applicationClientId e roleIds.
+[ ] Backend validar JWT: issuer, audience, assinatura e expiracao.
+[ ] Backend usar client_credentials para assignRole.
+[ ] Nunca expor clientSecret no frontend.
+[ ] Depois de mudar role, emitir novo accessToken via refresh ou novo login.`
 
   return (
     <section className="docs-layout docs-pro">
       <article className="admin-section wide">
         <div className="section-heading">
-          <h2>Tutorial completo de integracao</h2>
+          <h2>Integracao completa com SentinelAuth</h2>
           <BookOpen size={18} />
         </div>
         <p className="doc-lead">
-          Pense no SentinelAuth como o Google/GitHub do seu ecossistema: ele guarda a conta
-          global, emite tokens e controla roles por aplicacao. A sua API continua dona dos
-          dados de negocio, como cliente, vendedor, perfil, pedido, evento ou assinatura.
+          O SentinelAuth centraliza conta, senha, OAuth, refresh token e roles por aplicacao.
+          A API consumidora continua dona dos dados de negocio e deve fazer operacoes sensiveis
+          server-to-server, nunca pelo frontend.
         </p>
         <div className="doc-flow">
-          <DocStep title="1. Cadastre a aplicacao">
-            Crie um application client para cada API/app que vai confiar no SentinelAuth.
+          <DocStep title="1. Registre a aplicacao">
+            Crie um ApplicationClient com clientId, audience e secret de backend.
           </DocStep>
-          <DocStep title="2. Crie roles">
-            Cadastre permissoes como client, seller, admin ou qualquer papel do seu dominio.
+          <DocStep title="2. Configure o login">
+            O frontend abre o SentinelAuth, recebe code e troca por accessToken e refreshToken.
           </DocStep>
-          <DocStep title="3. Abra o login central">
-            O frontend redireciona para /authorize com client_id, redirect_uri e state.
+          <DocStep title="3. Valide JWT na API">
+            Sua API valida issuer, audience, assinatura, expiracao e roles.
           </DocStep>
-          <DocStep title="4. Troque code por tokens">
-            O callback retorna code e state. Valide o state e troque o code por tokens.
+          <DocStep title="4. Crie perfil local">
+            Dados de negocio ficam no seu banco: cliente, vendedor, assinatura, pedido etc.
           </DocStep>
-          <DocStep title="5. Faca onboarding local">
-            Se o usuario nao tem perfil na sua API, pergunte o tipo e crie os dados locais.
+          <DocStep title="5. Atribua role com token de app">
+            Backend usa client_credentials e chama assignRole com Bearer token da aplicacao.
           </DocStep>
-          <DocStep title="6. Renove o token">
-            Depois de atribuir role, peca um novo token para a role aparecer nas claims.
+          <DocStep title="6. Renove o token do usuario">
+            Role nova so aparece em um accessToken novo.
           </DocStep>
         </div>
       </article>
 
       <article className="admin-section wide">
-        <div className="section-heading">
-          <h2>Quem faz o que?</h2>
-          <CheckCircle2 size={18} />
-        </div>
+        <div className="section-heading"><h2>Responsabilidades</h2><CheckCircle2 size={18} /></div>
         <div className="doc-table">
-          <div><strong>SentinelAuth</strong><span>Conta global, senha, cadastro, login, refresh token e roles globais por aplicacao.</span></div>
-          <div><strong>Frontend consumidor</strong><span>Abre /authorize, recebe callback, troca code por tokens e salva tokens com seguranca.</span></div>
-          <div><strong>API consumidora</strong><span>Valida JWT, protege endpoints, cria perfis locais e atribui roles no SentinelAuth.</span></div>
-          <div><strong>Banco local da API</strong><span>Guarda dados de negocio: CPF/CNPJ, loja, eventos, pedidos e preferencias.</span></div>
+          <div><strong>SentinelAuth</strong><span>Conta global, login, OAuth, refresh token e roles por aplicacao.</span></div>
+          <div><strong>Frontend consumidor</strong><span>Abre login central, valida state, troca code por token e envia Bearer para sua API.</span></div>
+          <div><strong>API consumidora</strong><span>Valida JWT, protege rotas, cria perfis locais e atribui roles com client_credentials.</span></div>
+          <div><strong>Banco local da API</strong><span>Guarda dados de negocio que nao pertencem ao auth.</span></div>
         </div>
       </article>
 
       <article className="admin-section wide">
-        <div className="section-heading">
-          <h2>1. Cadastre sua aplicacao</h2>
-        </div>
-        <p className="doc-copy">
-          O <code>clientId</code> identifica o app no login. O <code>audience</code> identifica
-          a API que vai validar o JWT.
-        </p>
-        <CodeBlock value={createApplication} />
-      </article>
-
-      <article className="admin-section wide">
-        <div className="section-heading">
-          <h2>2. Crie roles para a aplicacao</h2>
-        </div>
-        <p className="doc-copy">
-          Role pertence a uma aplicacao. Um usuario pode ser seller no Ingressinhos e nao ter
-          nenhuma permissao em outro app.
-        </p>
-        <CodeBlock value={createRoles} />
-      </article>
-
-      <article className="admin-section wide">
-        <div className="section-heading">
-          <h2>3. Cadastro e login direto pela API</h2>
-        </div>
-        <p className="doc-copy">
-          Funciona para testes e clientes confiaveis. Para uma experiencia profissional estilo
-          Google/GitHub, prefira o login central em /authorize.
-        </p>
-        <CodeBlock value={registerAndLogin} />
-      </article>
-
-      <article className="admin-section wide">
-        <div className="section-heading">
-          <h2>4. Login central: abrir o SentinelAuth</h2>
-        </div>
-        <p className="doc-copy">
-          A URL publica do frontend SentinelAuth recebe client_id, redirect_uri e state. O
-          state deve ser aleatorio e salvo antes do redirect.
-        </p>
-        <CodeBlock value={authorizeUrl} />
-        <CodeBlock value={openCentralLogin} />
-      </article>
-
-      <article className="admin-section wide">
-        <div className="section-heading">
-          <h2>5. O que /authorize faz por baixo</h2>
-        </div>
-        <p className="doc-copy">
-          Quando o usuario informa e-mail e senha no frontend SentinelAuth, ele chama o backend
-          abaixo. O backend cria um authorization code e monta a URL de callback.
-        </p>
-        <CodeBlock value={authorizePost} />
-      </article>
-
-      <article className="admin-section wide">
-        <div className="section-heading">
-          <h2>6. Callback, code e state</h2>
-        </div>
-        <div className="doc-callout">
-          <strong>Regra de ouro:</strong>
-          <span>
-            <code>code</code> nao e token. Ele e uma credencial temporaria, de uso unico, usada
-            apenas para pedir os tokens reais. <code>state</code> prova que o callback pertence
-            ao login que o seu app iniciou.
-          </span>
-        </div>
-        <CodeBlock value={callbackHandling} />
-      </article>
-
-      <article className="admin-section wide">
-        <div className="section-heading">
-          <h2>7. Troque code por tokens</h2>
-        </div>
-        <p className="doc-copy">
-          Depois de validar o state, chame /api/oauth/token. Salve accessToken para chamar APIs
-          e refreshToken para renovar sessao sem pedir senha de novo.
-        </p>
-        <CodeBlock value={exchangeCode} />
-      </article>
-
-      <article className="admin-section wide">
-        <div className="section-heading">
-          <h2>8. Onboarding local</h2>
-        </div>
-        <p className="doc-copy">
-          SentinelAuth sabe quem e o usuario global. A sua API decide o que esse usuario e dentro
-          do seu produto. No Ingressinhos, perguntamos cliente ou vendedor, criamos o perfil local
-          e atribuimos a role correta.
-        </p>
-        <CodeBlock value={onboardingApi} />
-      </article>
-
-      <article className="admin-section wide">
-        <div className="section-heading">
-          <h2>9. Atribua role ao usuario</h2>
-        </div>
-        <p className="doc-copy">
-          Depois de criar o perfil local, chame o SentinelAuth para atribuir a role. Ex.: cliente
-          recebe role client; vendedor recebe role seller.
-        </p>
-        <CodeBlock value={assignRole} />
-      </article>
-
-      <article className="admin-section wide">
-        <div className="section-heading">
-          <h2>10. Preciso pedir novo token depois da role?</h2>
-        </div>
-        <div className="doc-callout">
-          <strong>Sim.</strong>
-          <span>
-            O JWT ja emitido nao muda sozinho. Se voce atribuiu ou removeu uma role, o app precisa
-            receber um novo accessToken para que as claims venham atualizadas.
-          </span>
-        </div>
-        <ol className="steps">
-          <li>Depois do onboarding, chame refresh ou refaca login.</li>
-          <li>Substitua accessToken e refreshToken salvos pelos novos valores.</li>
-          <li>So depois disso libere telas que dependem de role.</li>
-        </ol>
-        <CodeBlock value={refreshToken} />
-      </article>
-
-      <article className="admin-section wide">
-        <div className="section-heading">
-          <h2>11. Valide token na API consumidora</h2>
-        </div>
-        <p className="doc-copy">
-          Toda API integrada deve validar issuer, audience, assinatura e expiracao. Depois use
-          [Authorize] e [Authorize(Roles = "...")] nos endpoints.
-        </p>
-        <CodeBlock value={validateApi} />
-        <CodeBlock value={protectEndpoint} />
-      </article>
-
-      <article className="admin-section wide">
-        <div className="section-heading">
-          <h2>12. Endpoints administrativos uteis</h2>
-        </div>
+        <div className="section-heading"><h2>Token de usuario vs token de aplicacao</h2></div>
         <div className="doc-table">
-          <div><strong>GET /api/admin/overview</strong><span>Lista aplicacoes, usuarios e atribuicoes em uma resposta.</span></div>
-          <div><strong>GET /api/admin/applications</strong><span>Lista aplicacoes cadastradas.</span></div>
-          <div><strong>GET /api/admin/users</strong><span>Lista usuarios globais.</span></div>
-          <div><strong>GET /api/admin/applications/{'{id}'}/details</strong><span>Mostra roles e atribuicoes de uma aplicacao.</span></div>
-          <div><strong>PUT /api/admin/roles/{'{roleId}'}</strong><span>Renomeia uma role. Body: {'{ "name": "seller" }'}.</span></div>
-          <div><strong>DELETE /api/admin/roles/{'{roleId}'}</strong><span>Remove uma role.</span></div>
-          <div><strong>DELETE /api/admin/assignments/{'{assignmentId}'}</strong><span>Remove uma atribuicao de role.</span></div>
+          <div><strong>Token de usuario</strong><span>Representa uma pessoa. Usado para acessar a API do produto.</span></div>
+          <div><strong>Token de aplicacao</strong><span>Representa um backend confiavel. Usado para server-to-server, como assignRole.</span></div>
+          <div><strong>Regra de seguranca</strong><span>Frontend nunca recebe clientSecret e nunca chama assignRole diretamente.</span></div>
         </div>
       </article>
 
-      <article className="admin-section wide">
-        <div className="section-heading">
-          <h2>13. Migrando de auth proprio</h2>
-        </div>
-        <p className="doc-copy">
-          Se seu projeto ja tem login proprio, nao jogue fora os dados de dominio. Migre a
-          identidade para o SentinelAuth e mantenha os perfis locais na sua API.
-        </p>
-        <CodeBlock value={migration} />
-      </article>
+      <article className="admin-section wide"><div className="section-heading"><h2>1. Cadastre a aplicacao</h2></div><p className="doc-copy">Operacao administrativa. Cada API/app confiavel precisa de um ApplicationClient proprio.</p><CodeBlock value={registerApplication} /></article>
+      <article className="admin-section wide"><div className="section-heading"><h2>2. Crie roles da aplicacao</h2></div><p className="doc-copy">Roles sao isoladas por ApplicationClient.</p><CodeBlock value={createRoles} /></article>
+      <article className="admin-section wide"><div className="section-heading"><h2>3. Configure frontend e backend</h2></div><p className="doc-copy">O frontend recebe apenas valores publicos. O clientSecret fica somente no backend.</p><CodeBlock value={frontendConfig} /><CodeBlock value={backendConfig} /></article>
+      <article className="admin-section wide"><div className="section-heading"><h2>4. Abra o login central</h2></div><p className="doc-copy">Use state aleatorio para proteger o callback contra CSRF e callbacks antigos.</p><CodeBlock value={openCentralLogin} /></article>
+      <article className="admin-section wide"><div className="section-heading"><h2>5. Callback, code e state</h2></div><div className="doc-callout"><strong>Importante:</strong><span>code nao e token. Ele e temporario e de uso unico.</span></div><CodeBlock value={callbackHandling} /></article>
+      <article className="admin-section wide"><div className="section-heading"><h2>6. Troque code por tokens de usuario</h2></div><p className="doc-copy">O accessToken representa o usuario logado e vem com roles daquela aplicacao.</p><CodeBlock value={exchangeCode} /><CodeBlock value={userJwt} /></article>
+      <article className="admin-section wide"><div className="section-heading"><h2>7. Valide o JWT na sua API</h2></div><p className="doc-copy">A API consumidora deve validar o token antes de confiar em usuario ou role.</p><CodeBlock value={validateApi} /><CodeBlock value={protectEndpoint} /></article>
+      <article className="admin-section wide"><div className="section-heading"><h2>8. Onboarding local</h2></div><p className="doc-copy">SentinelAuth sabe quem e a pessoa. Sua API decide qual perfil de negocio ela possui.</p><CodeBlock value={onboardingFlow} /></article>
+      <article className="admin-section wide"><div className="section-heading"><h2>9. Peça token de aplicacao</h2></div><p className="doc-copy">Antes de atribuir role, o backend autentica como aplicacao usando client_credentials.</p><CodeBlock value={clientCredentials} /><CodeBlock value={appJwt} /></article>
+      <article className="admin-section wide"><div className="section-heading"><h2>10. Atribua role com seguranca</h2></div><p className="doc-copy">assignRole aceita somente token de aplicacao com scope roles:assign e applicationClientId compatível.</p><CodeBlock value={assignRole} /></article>
+      <article className="admin-section wide"><div className="section-heading"><h2>11. Renove token depois de mudar role</h2></div><p className="doc-copy">JWT ja emitido nao muda. Depois de atribuir ou remover role, gere um accessToken novo.</p><CodeBlock value={refreshToken} /></article>
+      <article className="admin-section wide"><div className="section-heading"><h2>12. Como o Ingressinhos esta integrado</h2></div><p className="doc-copy">O Ingressinhos usa seed no SentinelAuth e configuracao no backend para pre-cadastrar client, roles e secret.</p><CodeBlock value={ingressinhosSeed} /><CodeBlock value={ingressinhosCompose} /><CodeBlock value={ingressinhosRequestAuth} /></article>
+      <article className="admin-section wide"><div className="section-heading"><h2>13. Checklist de integracao</h2></div><CodeBlock value={migration} /></article>
     </section>
   )
 }
-
 function DocStep({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="doc-step">
@@ -1344,3 +1488,4 @@ function App() {
 }
 
 export default App
+

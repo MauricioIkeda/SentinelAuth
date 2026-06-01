@@ -4,7 +4,10 @@ using SentinelAuth.Domain.Shared;
 namespace SentinelAuth.Application.UseCases.OAuth.Token;
 
 public sealed record ExchangeAuthorizationCodeCommand(
-    string Code,
+    string? GrantType,
+    string? Code,
     string ClientId,
-    string RedirectUri
+    string? RedirectUri,
+    string? ClientSecret,
+    string? Scope
 ) : IRequest<Result<ExchangeAuthorizationCodeResult>>;

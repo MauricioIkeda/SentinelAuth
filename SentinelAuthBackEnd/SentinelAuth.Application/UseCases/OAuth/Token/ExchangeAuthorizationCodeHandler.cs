@@ -40,18 +40,10 @@ public sealed class ExchangeAuthorizationCodeHandler
         ExchangeAuthorizationCodeCommand command,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(command.Code))
+        if (string.IsNullOrWhiteSpace(command.ClientId))
         {
             return Result<ExchangeAuthorizationCodeResult>.Failure(
-                Error.Validation("OAuth.Code", "Code is required.")
-            );
-        }
-
-        if (string.IsNullOrWhiteSpace(command.RedirectUri) ||
-            !Uri.TryCreate(command.RedirectUri, UriKind.Absolute, out _))
-        {
-            return Result<ExchangeAuthorizationCodeResult>.Failure(
-                Error.Validation("OAuth.RedirectUri", "RedirectUri is invalid.")
+                Error.Validation("OAuth.ClientId", "ClientId is required.")
             );
         }
 
@@ -64,6 +56,37 @@ public sealed class ExchangeAuthorizationCodeHandler
         {
             return Result<ExchangeAuthorizationCodeResult>.Failure(
                 Error.NotFound("ApplicationClient.NotFound", "Application client was not found.")
+            );
+        }
+
+        var grantType = string.IsNullOrWhiteSpace(command.GrantType)
+            ? "authorization_code"
+            : command.GrantType.Trim();
+
+        if (grantType.Equals("client_credentials", StringComparison.OrdinalIgnoreCase))
+        {
+            return HandleClientCredentials(command, applicationClient);
+        }
+
+        if (!grantType.Equals("authorization_code", StringComparison.OrdinalIgnoreCase))
+        {
+            return Result<ExchangeAuthorizationCodeResult>.Failure(
+                Error.Validation("OAuth.GrantType", "Grant type is not supported.")
+            );
+        }
+
+        if (string.IsNullOrWhiteSpace(command.Code))
+        {
+            return Result<ExchangeAuthorizationCodeResult>.Failure(
+                Error.Validation("OAuth.Code", "Code is required.")
+            );
+        }
+
+        if (string.IsNullOrWhiteSpace(command.RedirectUri) ||
+            !Uri.TryCreate(command.RedirectUri, UriKind.Absolute, out _))
+        {
+            return Result<ExchangeAuthorizationCodeResult>.Failure(
+                Error.Validation("OAuth.RedirectUri", "RedirectUri is invalid.")
             );
         }
 
@@ -135,6 +158,52 @@ public sealed class ExchangeAuthorizationCodeHandler
             new ExchangeAuthorizationCodeResult(
                 accessToken.Token,
                 plainRefreshToken,
+                accessToken.ExpiresAt
+            )
+        );
+    }
+
+    private Result<ExchangeAuthorizationCodeResult> HandleClientCredentials(
+        ExchangeAuthorizationCodeCommand command,
+        ApplicationClient applicationClient)
+    {
+        if (!applicationClient.AllowRoleAssignment)
+        {
+            return Result<ExchangeAuthorizationCodeResult>.Failure(
+                Error.Validation("OAuth.ClientNotAllowed", "Application client is not allowed to use client credentials.")
+            );
+        }
+
+        if (!_tokenService.VerifyClientSecret(
+                command.ClientSecret ?? string.Empty,
+                applicationClient.ClientSecretHash ?? string.Empty))
+        {
+            return Result<ExchangeAuthorizationCodeResult>.Failure(
+                Error.Validation("OAuth.InvalidClient", "Client credentials are invalid.")
+            );
+        }
+
+        var requestedScopes = (command.Scope ?? "roles:assign")
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (!requestedScopes.Contains("roles:assign", StringComparer.OrdinalIgnoreCase))
+        {
+            return Result<ExchangeAuthorizationCodeResult>.Failure(
+                Error.Validation("OAuth.Scope", "The roles:assign scope is required.")
+            );
+        }
+
+        var accessToken = _tokenService.GenerateClientAccessToken(
+            applicationClient,
+            new[] { "roles:assign" }
+        );
+
+        return Result<ExchangeAuthorizationCodeResult>.Success(
+            new ExchangeAuthorizationCodeResult(
+                accessToken.Token,
+                string.Empty,
                 accessToken.ExpiresAt
             )
         );

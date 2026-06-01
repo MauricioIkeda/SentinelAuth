@@ -65,6 +65,48 @@ namespace SentinelAuth.Infrastructure.Security
             );
         }
 
+        public AccessToken GenerateClientAccessToken(ApplicationClient client, IReadOnlyCollection<string> scopes)
+        {
+            var expiresAt = DateTimeOffset.UtcNow.AddMinutes(10);
+            var normalizedScopes = scopes
+                .Where(scope => !string.IsNullOrWhiteSpace(scope))
+                .Select(scope => scope.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            var claims = new List<Claim>
+            {
+                new(JwtRegisteredClaimNames.Sub, $"app:{client.ClientId}"),
+                new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                new("client_id", client.ClientId),
+                new("application_client_id", client.Id.ToString()),
+                new("token_use", "client_credentials"),
+                new("scope", string.Join(' ', normalizedScopes))
+            };
+
+            var key = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(_options.SecretKey)
+            );
+
+            var credentials = new SigningCredentials(
+                key,
+                SecurityAlgorithms.HmacSha256
+            );
+
+            var jwt = new JwtSecurityToken(
+                issuer: _options.Issuer,
+                audience: "SentinelAuth.API",
+                claims: claims,
+                notBefore: DateTime.UtcNow,
+                expires: expiresAt.UtcDateTime,
+                signingCredentials: credentials
+            );
+
+            var token = new JwtSecurityTokenHandler().WriteToken(jwt);
+
+            return new AccessToken(token, expiresAt);
+        }
+
         public string GenerateRefreshToken()
         {
             var bytes = RandomNumberGenerator.GetBytes(64);
@@ -85,6 +127,38 @@ namespace SentinelAuth.Infrastructure.Security
             var bytes = Encoding.UTF8.GetBytes(refreshToken);
             var hashBytes = SHA256.HashData(bytes);
             return Convert.ToBase64String(hashBytes);
+        }
+
+        public string HashClientSecret(string clientSecret)
+        {
+            if (string.IsNullOrWhiteSpace(clientSecret))
+            {
+                return string.Empty;
+            }
+
+            var bytes = Encoding.UTF8.GetBytes(clientSecret);
+            var hashBytes = SHA256.HashData(bytes);
+            return Convert.ToBase64String(hashBytes);
+        }
+
+        public bool VerifyClientSecret(string clientSecret, string clientSecretHash)
+        {
+            if (string.IsNullOrWhiteSpace(clientSecret) || string.IsNullOrWhiteSpace(clientSecretHash))
+            {
+                return false;
+            }
+
+            try
+            {
+                return CryptographicOperations.FixedTimeEquals(
+                    Convert.FromBase64String(HashClientSecret(clientSecret)),
+                    Convert.FromBase64String(clientSecretHash)
+                );
+            }
+            catch (FormatException)
+            {
+                return false;
+            }
         }
     }
 }

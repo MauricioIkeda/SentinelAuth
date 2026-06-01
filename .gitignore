@@ -355,6 +355,11 @@ ASALocalRun/
 # MSBuild Binary and Structured Log
 *.binlog
 
+# Local secrets and environment overrides
+.env
+.env.*
+!.env.example
+
 # NVidia Nsight GPU debugger configuration file
 *.nvuser
 

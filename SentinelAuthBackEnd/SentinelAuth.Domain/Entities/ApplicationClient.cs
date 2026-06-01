@@ -7,24 +7,35 @@ public class ApplicationClient : BaseEntity
     public string Name { get; private set; }
     public string ClientId { get; private set; }
     public string Audience { get; private set; }
+    public string? ClientSecretHash { get; private set; }
+    public bool AllowRoleAssignment { get; private set; }
     public bool IsActive { get; private set; }
 
     private ApplicationClient()
     {
     }
 
-    private ApplicationClient(string name, string clientId, string audience)
+    private ApplicationClient(
+        string name,
+        string clientId,
+        string audience,
+        string? clientSecretHash,
+        bool allowRoleAssignment)
     {
         Name = name;
         ClientId = clientId;
         Audience = audience;
+        ClientSecretHash = clientSecretHash;
+        AllowRoleAssignment = allowRoleAssignment;
         IsActive = true;
     }
 
     public static Result<ApplicationClient> Create(
         string name,
         string clientId,
-        string audience)
+        string audience,
+        string? clientSecretHash = null,
+        bool allowRoleAssignment = false)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -46,14 +57,28 @@ public class ApplicationClient : BaseEntity
                 Error.Validation("ApplicationClient.Audience", "Audience is required")
             );
         }
-        
+
         return Result<ApplicationClient>.Success(
             new ApplicationClient(
                 name.Trim(),
                 clientId.Trim(),
-                audience.Trim()
+                audience.Trim(),
+                string.IsNullOrWhiteSpace(clientSecretHash) ? null : clientSecretHash.Trim(),
+                allowRoleAssignment
             )
         );
+    }
+
+    public void ConfigureClientSecret(string clientSecretHash)
+    {
+        ClientSecretHash = string.IsNullOrWhiteSpace(clientSecretHash)
+            ? null
+            : clientSecretHash.Trim();
+    }
+
+    public void SetRoleAssignmentPermission(bool allowRoleAssignment)
+    {
+        AllowRoleAssignment = allowRoleAssignment;
     }
 
     public void Deactivate()

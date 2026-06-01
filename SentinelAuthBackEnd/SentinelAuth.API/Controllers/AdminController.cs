@@ -1,11 +1,14 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using SentinelAuth.Domain.Entities;
 using SentinelAuth.Infrastructure.Data;
 
 namespace SentinelAuth.API.Controllers;
 
 [ApiController]
 [Route("api/admin")]
+[Authorize(Policy = "SentinelAdminOnly")]
 public sealed class AdminController : ControllerBase
 {
     private readonly ApplicationDbContext _dbContext;
@@ -186,6 +189,72 @@ public sealed class AdminController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("applications/{applicationClientId:long}/assignments")]
+    public async Task<IActionResult> CreateAssignment(
+        long applicationClientId,
+        CreateAssignmentRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userExists = await _dbContext.Users.AnyAsync(
+            user => user.Id == request.UserId,
+            cancellationToken
+        );
+
+        if (!userExists)
+        {
+            return NotFound(new { message = "User was not found." });
+        }
+
+        var role = await _dbContext.Roles.FirstOrDefaultAsync(
+            item => item.Id == request.RoleId,
+            cancellationToken
+        );
+
+        if (role is null)
+        {
+            return NotFound(new { message = "Role was not found." });
+        }
+
+        if (role.ApplicationClientId != applicationClientId)
+        {
+            return BadRequest(new { message = "Role does not belong to this application." });
+        }
+
+        var alreadyAssigned = await _dbContext.UserApplicationRoles.AnyAsync(
+            item =>
+                item.UserId == request.UserId &&
+                item.ApplicationClientId == applicationClientId &&
+                item.RoleId == request.RoleId,
+            cancellationToken
+        );
+
+        if (alreadyAssigned)
+        {
+            return Conflict(new { message = "User already has this role for this application." });
+        }
+
+        var assignment = UserApplicationRole.Create(
+            request.UserId,
+            applicationClientId,
+            request.RoleId
+        );
+
+        if (assignment.IsFailure)
+        {
+            return BadRequest(new { message = assignment.Error.Message });
+        }
+
+        await _dbContext.UserApplicationRoles.AddAsync(assignment.Value, cancellationToken);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return Ok(new AssignmentCreatedResponse(
+            assignment.Value.Id,
+            assignment.Value.UserId,
+            assignment.Value.ApplicationClientId,
+            assignment.Value.RoleId
+        ));
+    }
+
     private Task<List<ApplicationSummaryResponse>> QueryApplicationsAsync(
         CancellationToken cancellationToken)
     {
@@ -301,6 +370,13 @@ public sealed record ApplicationDetailsResponse(
 );
 
 public sealed record RenameRoleRequest(string Name);
+public sealed record CreateAssignmentRequest(long UserId, long RoleId);
+public sealed record AssignmentCreatedResponse(
+    long Id,
+    long UserId,
+    long ApplicationClientId,
+    long RoleId
+);
 
 public sealed record UserRoleAssignmentResponse(
     long Id,
