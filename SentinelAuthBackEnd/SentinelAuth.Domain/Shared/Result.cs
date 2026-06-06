@@ -33,6 +33,6 @@
         }
 
         public static Result<T> Success(T value) => new Result<T>(value, true, Error.None);
-        public static new Result<T> Failure(Error error) => new Result<T>(default, false, error);
+        public static new Result<T> Failure(Error error) => new Result<T>(default!, false, error);
     }
 }

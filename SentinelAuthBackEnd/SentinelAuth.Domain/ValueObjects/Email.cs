@@ -4,7 +4,7 @@ namespace SentinelAuth.Domain.ValueObjects
 {
     public class Email
     {
-        public string Value { get; }
+        public string Value { get; } = null!;
 
         private Email(string value)
         {

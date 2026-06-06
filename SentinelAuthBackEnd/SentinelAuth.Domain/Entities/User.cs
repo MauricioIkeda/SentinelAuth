@@ -5,9 +5,9 @@ namespace SentinelAuth.Domain.Entities
 {
     public class User : BaseEntity
     {
-        public string Name { get; set; }
-        public Email Email { get; private set; }
-        public string PasswordHash { get; private set; }
+        public string Name { get; set; } = null!;
+        public Email Email { get; private set; } = null!;
+        public string PasswordHash { get; private set; } = null!;
         public bool IsActive { get; private set; } = true;
 
         private User(string name, Email email, string passwordHash)

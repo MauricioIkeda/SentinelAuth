@@ -3,6 +3,6 @@
     <Project Path="SentinelAuth.API/SentinelAuth.API.csproj" />
     <Project Path="SentinelAuth.Application/SentinelAuth.Application.csproj" Id="b6f79559-e1ec-44d0-ba08-b0d9f6267bdd" />
     <Project Path="SentinelAuth.Domain/SentinelAuth.Domain.csproj" />
+    <Project Path="SentinelAuth.Infrastructure/SentinelAuth.Infrastructure.csproj" />
   </Folder>
-  <Project Path="SentinelAuth.Infrastructure/SentinelAuth.Infrastructure.csproj" />
 </Solution>

@@ -10,6 +10,13 @@ public interface IRoleRepository
         CancellationToken cancellationToken = default
     );
 
+    Task<bool> ExistsByNameAsync(
+        long applicationClientId,
+        string normalizedName,
+        long ignoredRoleId,
+        CancellationToken cancellationToken = default
+    );
+
     Task<Role?> GetByIdAsync(
         long id,
         CancellationToken cancellationToken = default
@@ -19,4 +26,6 @@ public interface IRoleRepository
         Role role,
         CancellationToken cancellationToken = default
     );
+
+    void Remove(Role role);
 }

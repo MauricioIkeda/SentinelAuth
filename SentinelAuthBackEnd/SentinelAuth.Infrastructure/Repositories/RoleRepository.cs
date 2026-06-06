@@ -27,6 +27,21 @@ public sealed class RoleRepository : IRoleRepository
         );
     }
 
+    public Task<bool> ExistsByNameAsync(
+        long applicationClientId,
+        string normalizedName,
+        long ignoredRoleId,
+        CancellationToken cancellationToken = default)
+    {
+        return _dbContext.Roles.AnyAsync(
+            role =>
+                role.Id != ignoredRoleId &&
+                role.ApplicationClientId == applicationClientId &&
+                role.NormalizedName == normalizedName,
+            cancellationToken
+        );
+    }
+
     public Task<Role?> GetByIdAsync(
         long id,
         CancellationToken cancellationToken = default)
@@ -42,5 +57,10 @@ public sealed class RoleRepository : IRoleRepository
         CancellationToken cancellationToken = default)
     {
         await _dbContext.Roles.AddAsync(role, cancellationToken);
+    }
+
+    public void Remove(Role role)
+    {
+        _dbContext.Roles.Remove(role);
     }
 }

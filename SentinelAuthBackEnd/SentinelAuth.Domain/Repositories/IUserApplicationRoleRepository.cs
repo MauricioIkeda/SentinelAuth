@@ -11,6 +11,11 @@ public interface IUserApplicationRoleRepository
         CancellationToken cancellationToken = default
     );
 
+    Task<UserApplicationRole?> GetByIdAsync(
+        long id,
+        CancellationToken cancellationToken = default
+    );
+
     Task AddAsync(
         UserApplicationRole userApplicationRole,
         CancellationToken cancellationToken = default
@@ -21,4 +26,6 @@ public interface IUserApplicationRoleRepository
         long applicationClientId,
         CancellationToken cancellationToken = default
     );
+
+    void Remove(UserApplicationRole userApplicationRole);
 }

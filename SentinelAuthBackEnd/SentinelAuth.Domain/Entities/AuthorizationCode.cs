@@ -6,8 +6,8 @@ public class AuthorizationCode : BaseEntity
 {
     public long UserId { get; private set; }
     public long ApplicationClientId { get; private set; }
-    public string CodeHash { get; private set; }
-    public string RedirectUri { get; private set; }
+    public string CodeHash { get; private set; } = null!;
+    public string RedirectUri { get; private set; } = null!;
     public DateTimeOffset ExpiresAt { get; private set; }
     public DateTimeOffset? ConsumedAt { get; private set; }
 

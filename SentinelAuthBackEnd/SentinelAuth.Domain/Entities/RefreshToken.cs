@@ -1,7 +1,4 @@
 ﻿using SentinelAuth.Domain.Shared;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace SentinelAuth.Domain.Entities
 {
@@ -9,7 +6,7 @@ namespace SentinelAuth.Domain.Entities
     {
         public long UserId { get; private set; }
         public long ApplicationClientId { get; private set; }
-        public string TokenHash { get; private set; }
+        public string TokenHash { get; private set; } = null!;
         public DateTimeOffset ExpiresAt { get; private set; }
         public DateTimeOffset? RevokedAt { get; private set; }
 

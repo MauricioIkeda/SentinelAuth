@@ -47,6 +47,16 @@ public sealed class UserApplicationRoleRepository : IUserApplicationRoleReposito
         );
     }
 
+    public Task<UserApplicationRole?> GetByIdAsync(
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        return _dbContext.UserApplicationRoles.FirstOrDefaultAsync(
+            userApplicationRole => userApplicationRole.Id == id,
+            cancellationToken
+        );
+    }
+
     public async Task AddAsync(
         UserApplicationRole userApplicationRole,
         CancellationToken cancellationToken = default)
@@ -55,5 +65,10 @@ public sealed class UserApplicationRoleRepository : IUserApplicationRoleReposito
             userApplicationRole,
             cancellationToken
         );
+    }
+
+    public void Remove(UserApplicationRole userApplicationRole)
+    {
+        _dbContext.UserApplicationRoles.Remove(userApplicationRole);
     }
 }

@@ -4,9 +4,9 @@ namespace SentinelAuth.Domain.Entities;
 
 public class ApplicationClient : BaseEntity
 {
-    public string Name { get; private set; }
-    public string ClientId { get; private set; }
-    public string Audience { get; private set; }
+    public string Name { get; private set; } = null!;
+    public string ClientId { get; private set; } = null!;
+    public string Audience { get; private set; } = null!;
     public string? ClientSecretHash { get; private set; }
     public bool AllowRoleAssignment { get; private set; }
     public bool IsActive { get; private set; }

@@ -5,8 +5,8 @@ namespace SentinelAuth.Domain.Entities;
 public class Role : BaseEntity
 {
     public long ApplicationClientId { get; private set; }
-    public string Name { get; private set; }
-    public string NormalizedName { get; private set; }
+    public string Name { get; private set; } = null!;
+    public string NormalizedName { get; private set; } = null!;
 
     private Role()
     {
