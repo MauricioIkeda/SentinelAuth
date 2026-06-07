@@ -1,4 +1,4 @@
-namespace SentinelAuth.Application.UseCases.Admin;
+namespace SentinelAuth.Application.UseCases.Admin.Shared;
 
 public sealed record AdminOverviewResult(
     IReadOnlyCollection<ApplicationSummaryResult> Applications,

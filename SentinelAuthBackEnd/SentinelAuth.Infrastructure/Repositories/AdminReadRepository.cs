@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SentinelAuth.Application.Interfaces;
-using SentinelAuth.Application.UseCases.Admin;
+using SentinelAuth.Application.UseCases.Admin.Shared;
 using SentinelAuth.Infrastructure.Data;
 
 namespace SentinelAuth.Infrastructure.Repositories;

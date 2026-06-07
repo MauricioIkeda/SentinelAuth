@@ -2,8 +2,9 @@ using MediatR;
 using SentinelAuth.Application.Interfaces;
 using SentinelAuth.Domain.Repositories;
 using SentinelAuth.Domain.Shared;
+using SentinelAuth.Application.UseCases.Admin.Shared;
 
-namespace SentinelAuth.Application.UseCases.Admin;
+namespace SentinelAuth.Application.UseCases.Admin.Assignments;
 
 public sealed class DeleteAssignmentHandler : IRequestHandler<DeleteAssignmentCommand, Result>
 {

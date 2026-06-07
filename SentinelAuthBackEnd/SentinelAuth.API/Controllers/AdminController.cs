@@ -2,7 +2,11 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SentinelAuth.API.Contracts.Admin;
-using SentinelAuth.Application.UseCases.Admin;
+using SentinelAuth.Application.UseCases.Admin.Applications;
+using SentinelAuth.Application.UseCases.Admin.Assignments;
+using SentinelAuth.Application.UseCases.Admin.Overview;
+using SentinelAuth.Application.UseCases.Admin.Roles;
+using SentinelAuth.Application.UseCases.Admin.Users;
 using SentinelAuth.Application.UseCases.Register.UserApplicationRole;
 
 namespace SentinelAuth.API.Controllers;

@@ -1,4 +1,4 @@
-using SentinelAuth.Application.UseCases.Admin;
+using SentinelAuth.Application.UseCases.Admin.Shared;
 
 namespace SentinelAuth.Application.Interfaces;
 

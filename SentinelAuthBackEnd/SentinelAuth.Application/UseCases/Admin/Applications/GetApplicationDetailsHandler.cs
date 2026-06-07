@@ -1,8 +1,9 @@
 using MediatR;
 using SentinelAuth.Application.Interfaces;
 using SentinelAuth.Domain.Shared;
+using SentinelAuth.Application.UseCases.Admin.Shared;
 
-namespace SentinelAuth.Application.UseCases.Admin;
+namespace SentinelAuth.Application.UseCases.Admin.Applications;
 
 public sealed class GetApplicationDetailsHandler
     : IRequestHandler<GetApplicationDetailsQuery, Result<ApplicationDetailsResult>>
